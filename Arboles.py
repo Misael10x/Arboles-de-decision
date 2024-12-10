@@ -227,3 +227,153 @@ X_train, y_train = remove_labels(train_set, 'calss')
 X_val, y_val = remove_labels(val_set, 'calss')
 X_test, y_test = remove_labels(test_set, 'calss')
 
+
+# # 4.- Escalado del Dataset.
+# 
+# Es importante comprender que los arboles de decisión son algoritmos que **no requieren demasiada preparación de los datos** concretamente, no requieren realizar escalado y normalización. En este ejercicio se realiza el escalado al DataSet y se comparan los resultados con el DataSet sin escalar. De esta manera se demuestra como aplicar preprocesamientos como el escalado puede afectar el rendimiento del problema o del módelo.
+
+# In[16]:
+
+
+scaler = RobustScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+
+
+# In[17]:
+
+
+scaler = RobustScaler()
+X_test_scaled = scaler.fit_transform(X_test)
+
+
+# In[18]:
+
+
+scaler = RobustScaler()
+X_val_scaled = scaler.fit_transform(X_val)
+
+
+# In[19]:
+
+
+# Realizar la transformación a un DataFrame de pandas
+X_train_scaled = DataFrame(X_train_scaled, columns = X_train.columns, index=X_train.index)
+X_train_scaled.head(10)
+
+
+# In[20]:
+
+
+X_train_scaled.describe()
+
+
+# # 5.- Árbol de Decisión.
+
+# In[21]:
+
+
+from sklearn.tree import DecisionTreeClassifier
+
+MAX_DEPTH = 20
+
+# Módelo entrenado con el DataSet sin escalar
+clf_tree = DecisionTreeClassifier(max_depth = MAX_DEPTH, random_state = 42)
+clf_tree.fit(X_train, y_train)
+
+
+# In[22]:
+
+
+# Módelo entrenado con el DataSet escalado
+clf_tree_scaled = DecisionTreeClassifier(max_depth = MAX_DEPTH, random_state = 42)
+clf_tree_scaled.fit(X_train_scaled, y_train)
+
+
+# Comenzar prediciendo con el propio DataSet con el que se ha entrenado el algoritmo (train_set), suele ser interesante para comprobar si se esta produciendo overfiting.
+
+# In[23]:
+
+
+# Predecir con el DataSet de entrenamiento
+y_train_pred = clf_tree.predict(X_train)
+y_train_prep_pred = clf_tree_scaled.predict(X_train_scaled)
+
+
+# In[24]:
+
+
+# Comprobar resultados entre el escalado y sin escalar
+evaluate_result(y_train_pred, y_train, y_train_prep_pred, y_train, f1_score)
+
+
+# # 6.- Visualizando el Limite de desicion
+
+# In[25]:
+
+
+# Se reduce el numero de atributos del conjunto de DataSet para visualizarlo mejor
+
+
+# In[26]:
+
+
+X_train_reduced = X_train[['min_flowpktl', 'flow_fin']]
+
+
+# In[27]:
+
+
+# Se genera un modelo con el DataSet reducido.
+clf_tree_reduced = DecisionTreeClassifier(max_depth=2, random_state = 42)
+clf_tree_reduced.fit(X_train_reduced, y_train)
+
+
+# In[28]:
+
+
+# Representar gŕaficamente el límite de decisión construido
+from matplotlib.colors import ListedColormap
+import matplotlib.pyplot as plt
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+def plot_decision_boundary(clf, X, y, plot_training = True, resolution = 1000):
+    mins = X.min(axis = 0) - 1
+    maxs = X.max(axis = 0) + 1
+    x1, x2 = np.meshgrid(np.linspace(mins[0], maxs[0], resolution),
+                         np.linspace(mins[1], maxs[1], resolution))
+    X_new = np.c_[x1.ravel(), x2.ravel()]
+    y_pred = clf.predict(X_new).reshape(x1.shape)
+    custom_cmap = ListedColormap(['#fafab0', '#9898ff', '#a0faa0'])
+    plt.contourf(x1, x2, y_pred, alpha = 0.3, cmap = custom_cmap)
+    custom_cmap2 = ListedColormap(['#7d7d58', '#4c4c7f', '#507d50'])
+    plt.contourf(x1, x2, y_pred, cmap = custom_cmap2, alpha = 0.8)
+    if plot_training:
+        plt.plot(X[:, 0][y==0], X[:, 1][y==0], "yo", label="normal")
+        plt.plot(X[:, 0][y==1], X[:, 1][y==1], "bs", label="adware")
+        plt.plot(X[:, 0][y==2], X[:, 1][y==2], "g^", label="malware")
+        plt.axis([mins[0], maxs[0], mins[1], maxs[1]])
+        plt.xlabel('min_flowpktl', fontsize = 14)
+        plt.ylabel('flow_fin', fontsize = 14, rotation = 90)
+        
+plt.figure(figsize = (12,6))
+plot_decision_boundary(clf_tree_reduced, X_train_reduced.values, y_train)
+plt.show()
+
+
+# In[29]:
+
+
+# Pintar el arbol para compararlo con la representacion grafica anterior
+from graphviz import Source
+from sklearn.tree import export_graphviz
+import os
+
+export_graphviz(
+    clf_tree_reduced,
+    out_file = "android_malware.dot",
+    feature_names = X_train_reduced.columns,
+    class_names = ["bening", "adware", "malware"],
+    rounded = True,
+    filled = True
+)
+Source.from_file("android_malware.dot")
